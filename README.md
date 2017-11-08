@@ -35,5 +35,5 @@ You can now filter out/annotate peaks falling in the greylist regions by interes
 the greylist file. For example:
 
 ```bash
-bedtools intersect -wao -a bamfile-peaks.bed -b bamfile-input-grey.bed > bamfile-peaks-greylist-annotated
+bedtools intersect -wao -a bamfile-peaks.bed -b bamfile-input-grey.bed > bamfile-peaks-greylist-annotated.bed
 ```
