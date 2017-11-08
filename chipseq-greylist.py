@@ -49,8 +49,8 @@ def estimate_threshold(depth, nreps=100, cutoff=0.99):
 def run_sambamba_depth(bamfile, outdir):
     cmd = ("sambamba depth window --window-size=1024 --overlap=512 "
            "{bamfile} > {outfile}")
-    bambase = os.path.basename(bamfile)
-    outfile = os.path.join(outdir, os.path.splitext(bambase)[0] + "-greydepth.tsv")
+    bambase = os.path.splitext(os.path.basename(bamfile))[0]
+    outfile = os.path.join(outdir, bambase + "-greydepth.tsv")
     if os.path.exists(outfile):
         return outfile
     subprocess.check_call(cmd.format(**locals()), shell=True)
@@ -66,7 +66,7 @@ if __name__ == "__main__":
     depth = load_sambamba_depth(depthfile)
     threshold = estimate_threshold(depth)
 
-    bambase = os.path.basename(args.bamfile)
+    bambase = os.path.splitext(os.path.basename(args.bamfile))[0]
     statsfile = os.path.join(args.outdir, bambase + "-greystats.csv")
     with open(statsfile, "w") as out_file:
         out_file.write(",".join(["stat", "value"]) + "\n")
