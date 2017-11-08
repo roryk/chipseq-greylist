@@ -17,3 +17,23 @@ original ideas.
 
 https://bioconductor.org/packages/release/bioc/html/GreyListChIP.html is
 the source of the idea and the algorithm.
+
+## usage
+Run chipseq-greylist on your **input BAM** file for each input-ChIP pair:
+
+```bash
+chipseq-greylist bamfile
+```
+
+this will produce a few files:
+
+* **bamfile-input-greystats.csv**: bootstrapped negative binomial parameters and estimated threshold
+* **bamfile-input-greydepth.tsv**: sambamba windowed depth
+* **bamfile-input-grey.bed**: BED file of greylist regions exceeding coverage threshold in the input file
+
+You can now filter out/annotate peaks falling in the greylist regions by interesecting the peaks with
+the greylist file. For example:
+
+```bash
+bedtools intersect -wao -a bamfile-peaks.bed -b bamfile-input-grey.bed > bamfile-peaks-greylist-annotated
+```
