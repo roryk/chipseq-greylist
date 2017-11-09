@@ -1,12 +1,17 @@
+from __future__ import print_function
+import logging
 import subprocess
+import warnings
 import os
-
 import pandas as pd
 import numpy as np
+
 from scipy import stats
 from statsmodels.discrete.discrete_model import NegativeBinomial as NB
 import statsmodels.api as sm
 from argparse import ArgumentParser
+
+LOGFORMAT = '%(asctime)s:chipseq-greylist:%(levelname)s:%(message)s'
 
 def load_sambamba_depth(filename):
     return pd.read_csv(filename, sep="\t")
@@ -19,7 +24,9 @@ def estimate_nb_parameters(depth):
     x = list(counts)
     y = np.ones(len(counts))
     loglike_method = "nb1"
-    fit = NB(x, y, loglike_method=loglike_method).fit(start_params=[0.1, 0.1])
+    with warnings.catch_warnings():
+         warnings.filterwarnings("ignore")
+         fit = NB(x, y, loglike_method=loglike_method).fit(start_params=[0.1, 0.1], disp=0)
     if loglike_method == 'nb1':
         Q = 1
     elif loglike_method == 'nb2':
@@ -31,6 +38,7 @@ def estimate_nb_parameters(depth):
     return {"size": size, "prob": prob}
 
 def estimate_threshold(depth, nreps=100, cutoff=0.99):
+    logging.info("Estimating greylisting threshold using %d bootstrap samples." % nreps)
     parameters = [estimate_nb_parameters(depth) for x in range(nreps)]
     sizes = [x["size"] for x in parameters]
     probs = [x["prob"] for x in parameters]
@@ -47,6 +55,8 @@ def estimate_threshold(depth, nreps=100, cutoff=0.99):
             "threshold": threshold}
 
 def run_sambamba_depth(bamfile, outdir):
+    logging.info("Calculating depth over genomic regions of %s with sambamba."
+                 % os.path.abspath(bamfile))
     cmd = ("sambamba depth window --window-size=1024 --overlap=512 "
            "{bamfile} > {outfile}")
     bambase = os.path.splitext(os.path.basename(bamfile))[0]
@@ -59,22 +69,28 @@ def run_sambamba_depth(bamfile, outdir):
 if __name__ == "__main__":
     parser = ArgumentParser()
     parser.add_argument("bamfile")
+    parser.add_argument("--cutoff", default=0.99)
+    parser.add_argument("--bootstraps", default=100, type=int)
+    parser.add_argument("--quiet", default=False, action='store_true')
     parser.add_argument("--outdir", default=".")
     args = parser.parse_args()
+    if not args.quiet:
+        logging.basicConfig(level=logging.INFO, format=LOGFORMAT)
 
+    logging.info("Running greylisting on %s." % args.bamfile)
     depthfile = run_sambamba_depth(args.bamfile, args.outdir)
     depth = load_sambamba_depth(depthfile)
-    threshold = estimate_threshold(depth)
+    threshold = estimate_threshold(depth, nreps=args.bootstraps, cutoff=args.cutoff)
 
     bambase = os.path.splitext(os.path.basename(args.bamfile))[0]
     statsfile = os.path.join(args.outdir, bambase + "-greystats.csv")
     with open(statsfile, "w") as out_file:
-        out_file.write(",".join(["stat", "value"]) + "\n")
-        out_file.write(",".join(["size_sd", str(threshold["size_sd"])]) + "\n")
-        out_file.write(",".join(["size_mean", str(threshold["size_mean"])]) + "\n")
-        out_file.write(",".join(["prob_sd", str(threshold["prob_sd"])]) + "\n")
-        out_file.write(",".join(["prob_mean", str(threshold["prob_mean"])]) + "\n")
-        out_file.write(",".join(["threshold", str(threshold["threshold"])]) + "\n")
+        print(",".join(["stat", "value"]), file=out_file)
+        print(",".join(["size_sd", str(threshold["size_sd"])]), file=out_file)
+        print(",".join(["size_mean", str(threshold["size_mean"])]), file=out_file)
+        print(",".join(["prob_sd", str(threshold["prob_sd"])]), file=out_file)
+        print(",".join(["prob_mean", str(threshold["prob_mean"])]), file=out_file)
+        print(",".join(["threshold", str(threshold["threshold"])]), file=out_file)
 
     bedfile = os.path.join(args.outdir, bambase + "-grey.bed")
     depth = depth[depth['readCount'] > threshold["threshold"]].ix[:, range(4)]

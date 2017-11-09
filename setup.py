@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 from setuptools import setup
-version = "1.0.0"
+version = "1.0.1"
 
 install_requires = ["pandas", "numpy", "scipy", "statsmodels"] 
 
